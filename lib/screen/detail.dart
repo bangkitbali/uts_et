@@ -1,139 +1,261 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../class/student.dart';
+import 'package:http/http.dart' as http;
+import '../main.dart'; // ambil active_user
 
-class DetailScreen extends StatelessWidget {
-  final Student studentData;
+class DetailProfile extends StatefulWidget {
+  final String user_id;
 
-  const DetailScreen({super.key, required this.studentData});
+  const DetailProfile({super.key, required this.user_id});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A1128),
-      appBar: AppBar(
-        title: const Text("Detail Profil"),
-        backgroundColor: Colors.black,
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Foto profil
-                CircleAvatar(
-                  radius: 70,
-                  backgroundImage: NetworkImage(studentData.photo),
-                ),
-                const SizedBox(height: 25),
+  State<DetailProfile> createState() => _DetailProfileState();
+}
 
-                // Nama dan NRP
-                Text(
-                  studentData.name,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  "NRP: ${studentData.nrp}",
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                  ),
-                ),
-                const SizedBox(height: 20),
+class _DetailProfileState extends State<DetailProfile> {
+  Map<String, dynamic>? _user;
 
-                // Kartu info
-                Card(
-                  color: Colors.white,
-                  elevation: 5,
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(15.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        infoRow(Icons.class_, "Program/Lab", studentData.program),
-                        const SizedBox(height: 10),
-                        infoRow(Icons.format_quote, "Bio", studentData.bio),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 80), 
-              ],
-            ),
-          ),
-        ),
-      ),
-
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text(
-                "Berhasil!",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              content: Text(
-                "${studentData.name} berhasil ditambahkan sebagai teman!",
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("OK"),
-                ),
-              ],
-            ),
-          );
-        },
-        backgroundColor: Colors.black,
-        child: const Icon(Icons.person_add_alt_1),
-      ),
-
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-        child: ElevatedButton.icon(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          icon: const Icon(Icons.home),
-          label: const Text("Kembali ke Home"),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    bacaData();
   }
 
-  static Widget infoRow(IconData icon, String label, String value) {
-    return Row(
+  // ================= FETCH DATA =================
+  Future<void> bacaData() async {
+    final response = await http.post(
+      Uri.parse("https://ubaya.cloud/flutter/160422163/uas/get_profile.php"),
+      body: {'user_id': widget.user_id},
+    );
+
+    if (response.statusCode == 200) {
+      setState(() {
+        _user = jsonDecode(response.body);
+      });
+    }
+  }
+
+  // ================= ADD FRIEND =================
+  void addFriend() async {
+    final response = await http.post(
+      Uri.parse("https://ubaya.cloud/flutter/160422163/uas/add_friend.php"),
+      body: {
+        'sender_id': active_user,        // 🔥 SAMA PERSIS PHP
+        'receiver_id': widget.user_id,   // 🔥 SAMA PERSIS PHP
+      },
+    );
+
+    if (response.statusCode == 200) {
+      Map json = jsonDecode(response.body);
+
+      if (!mounted) return;
+
+      if (json['result'] == 'success') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Permintaan pertemanan dikirim"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(json['message'] ?? "Gagal"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // ================= TAMPIL DATA (UI DIPERBAGUS) =================
+  Widget tampilData() {
+    if (_user == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(50.0),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return Column(
       children: [
-        Icon(icon, color: Colors.black),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            "$label: $value",
-            style: const TextStyle(fontSize: 16, color: Colors.black87),
+        // Kartu Profil Utama
+        Card(
+          margin: const EdgeInsets.all(16),
+          // Shape otomatis mengikuti tema global di main.dart
+          child: Column(
+            children: [
+              // Bagian Header Foto & Nama
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor.withOpacity(0.05),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).primaryColor,
+                          width: 3,
+                        ),
+                      ),
+                      child: CircleAvatar(
+                        radius: 60,
+                        backgroundColor: Colors.white,
+                        backgroundImage: NetworkImage(
+                          "https://i.pravatar.cc/150?u=${_user!['user_id']}",
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _user!['user_name'],
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "NRP: ${_user!['user_id']}",
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, thickness: 1),
+              // Bagian Detail Info
+              Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.school, color: Colors.blue),
+                      ),
+                      title: const Text(
+                        "Program / Lab",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        _user!['user_program'] ?? "-",
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                    const Divider(indent: 70, endIndent: 20),
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.text_snippet, color: Colors.amber),
+                      ),
+                      title: const Text(
+                        "Biografi",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        _user!['user_bio'] ?? "-",
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ],
+    );
+  }
+
+  // ================= BUILD =================
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Detail Profil")),
+      body: ListView(
+        children: [
+          tampilData(),
+
+          // ✏️ EDIT PROFILE (DIRI SENDIRI)
+          if (widget.user_id == active_user)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: SizedBox(
+                height: 50,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Theme.of(context).primaryColor),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  icon: const Icon(Icons.edit),
+                  label: const Text(
+                    "Edit Profile",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      'edit_profile',
+                    ).then((_) => bacaData());
+                  },
+                ),
+              ),
+            ),
+
+          // ➕ ADD FRIEND (ORANG LAIN)
+          if (widget.user_id != active_user)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: SizedBox(
+                height: 50,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 3,
+                  ),
+                  icon: const Icon(Icons.person_add),
+                  label: const Text(
+                    "Add Friend",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  onPressed: addFriend,
+                ),
+              ),
+            ),
+          
+          const SizedBox(height: 30), // Spasi bawah biar tidak mepet
+        ],
+      ),
     );
   }
 }

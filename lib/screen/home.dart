@@ -1,132 +1,139 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'dart:math';
-import '../class/student.dart';
+import 'package:http/http.dart' as http;
 import 'detail.dart';
 
-class Home extends StatelessWidget {
+class Home extends StatefulWidget {
   const Home({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      // appBar: AppBar(
-      //   title: const Text("Daftar Mahasiswa"),
-      //   backgroundColor: Colors.black,
-      //   centerTitle: true,
-      // ),
-      body: Stack(
-        children: [
+  State<Home> createState() => _HomeState();
+}
 
-          Container(decoration: const BoxDecoration(color: Color(0xFF0A1128))),
+class _HomeState extends State<Home> {
+  List users = [];
 
-          SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20.0,
-                vertical: 20.0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: students.length,
-                    itemBuilder: (context, index) {
-                      final student = students[index];
-                      return Card(
-                        color: Colors.white,
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  student.photo,
-                                  height: 150,
-                                  width: 150,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                student.name,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                "NRP: ${student.nrp}",
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          DetailScreen(studentData: student),
-                                    ),
-                                  );
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.black,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 10,
-                                  ),
-                                ),
-                                child: const Text("Lihat Detail Profil"),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    fetchUsers();
   }
 
-  static List<Widget> randomphotos() {
-    List<Widget> temp = [];
-    int i = 0;
-    final random = Random();
+  void fetchUsers() async {
+    final response = await http.get(
+      Uri.parse("https://ubaya.cloud/flutter/160422163/uas/get_users.php"),
+    );
 
-    while (i < 9) {
-      int randomNumber = random.nextInt(1084) + 1;
-      Widget w = ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          "https://picsum.photos/id/$randomNumber/200/200",
-          fit: BoxFit.cover,
-        ),
-      );
-      temp.add(w);
-      i++;
+    if (response.statusCode == 200) {
+      Map json = jsonDecode(response.body);
+      setState(() {
+        users = json['data'];
+      });
     }
-    return temp;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Saya ganti strukturnya sedikit agar scroll lebih mulus pakai ListView.builder
+    // dan menghapus warna background hitam agar sesuai tema aplikasi (Light Theme)
+    return Scaffold(
+      backgroundColor: Colors.grey[100], // Background abu muda biar Card menonjol
+      body: users.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              padding: const EdgeInsets.all(20),
+              itemCount: users.length,
+              itemBuilder: (context, index) {
+                final user = users[index];
+
+                return Card(
+                  elevation: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        // Avatar dengan Border Warna Tema
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Theme.of(context).primaryColor.withOpacity(0.5),
+                              width: 3,
+                            ),
+                          ),
+                          child: CircleAvatar(
+                            radius: 50,
+                            backgroundImage: NetworkImage(
+                              "https://i.pravatar.cc/150?u=${user['user_id']}",
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        
+                        // Nama User
+                        Text(
+                          user['user_name'],
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        
+                        // NRP
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(10)
+                          ),
+                          child: Text(
+                            "NRP: ${user['user_id']}",
+                            style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        // Tombol Lihat Detail
+                        SizedBox(
+                          width: double.infinity, // Tombol selebar kartu
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Theme.of(context).primaryColor, // Warna Biru Tema
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              elevation: 2,
+                            ),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      DetailProfile(user_id: user['user_id']),
+                                ),
+                              );
+                            },
+                            child: const Text(
+                              "Lihat Detail Profil",
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
   }
 }

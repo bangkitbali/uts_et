@@ -1,7 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'screen/home.dart'; 
-import 'screen/detail.dart';
+
+import 'screen/contacts.dart';
+import 'screen/requests.dart';
+
+import 'screen/home.dart';
 import 'screen/edit_profile.dart';
 import 'screen/login.dart';
 
@@ -11,9 +16,9 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   checkUser().then((String result) {
     if (result == '') {
-      runApp(MyLogin());
+      runApp(const MyLogin());
     } else {
-      active_user = result;
+      active_user = result; // SIMPAN NRP
       runApp(const MyApp());
     }
   });
@@ -21,49 +26,52 @@ void main() {
 
 Future<String> checkUser() async {
   final prefs = await SharedPreferences.getInstance();
-  String user_id = prefs.getString("user_id") ?? '';
-  return user_id;
+  return prefs.getString("user_id") ?? '';
 }
 
 void doLogout() async {
   final prefs = await SharedPreferences.getInstance();
-  prefs.remove("user_id");
+  await prefs.remove("user_id");
   main();
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'UTS Flutter Project',
+      title: 'UAS Flutter Project',
+      // 🔥 UPDATE TEMA GLOBAL DI SINI
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF1A237E), // Biru Tua Indigo
+          secondary: Colors.amber, // Warna aksen
+        ),
         useMaterial3: true,
+        scaffoldBackgroundColor: Colors.grey[100], // Background abu muda
+        
+        // Mengatur gaya AppBar secara global
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF1A237E),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: true,
+        ),
+        
+        // Mengatur gaya Drawer
+        drawerTheme: const DrawerThemeData(
+          backgroundColor: Colors.white,
+        ),
       ),
       home: const MyHomePage(title: 'Daftar Mahasiswa'),
       routes: {
-        'home': (context) => const MyHomePage(title: 'Home Page'),
+        'home': (context) => const MyHomePage(title: 'Daftar Mahasiswa'),
         'edit_profile': (context) => const EditProfileScreen(),
-        'login': (context) => MyLogin(),
+        'contacts': (context) => const ContactsScreen(),
+        'requests': (context) => const RequestsScreen(),
+        'login': (context) => const MyLogin(),
       },
     );
   }
@@ -71,15 +79,6 @@ class MyApp extends StatelessWidget {
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
   final String title;
 
   @override
@@ -87,64 +86,119 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  // 🔥 DATA DRAWER (DARI DATABASE)
+  String drawerName = "";
+  String drawerEmail = "";
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  @override
+  void initState() {
+    super.initState();
+    loadDrawerUser();
   }
 
-  Drawer myDrawer(BuildContext context) {
+  // 🔥 AMBIL DATA USER LOGIN
+  Future<void> loadDrawerUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    String user_id = prefs.getString("user_id") ?? "";
+
+    try {
+      final response = await http.post(
+        Uri.parse("https://ubaya.cloud/flutter/160422163/uas/get_profile.php"),
+        body: {'user_id': user_id},
+      );
+
+      if (response.statusCode == 200) {
+        Map json = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            drawerName = json['user_name'] ?? "Mahasiswa";
+            drawerEmail = json['user_email'] ?? user_id;
+          });
+        }
+      }
+    } catch (e) {
+      print("Error loading drawer: $e");
+    }
+  }
+
+  Drawer myDrawer() {
     return Drawer(
-      elevation: 16.0,
+      elevation: 16,
       child: Column(
         children: <Widget>[
-          // Bagian header akun (User info)
-          const UserAccountsDrawerHeader(
-            accountName: Text("Ahmad Rizki Pratama"),
-            accountEmail: Text("5025211001@student.ubaya.ac.id"),
-            currentAccountPicture: CircleAvatar(
-              backgroundImage: NetworkImage("https://i.pravatar.cc/150?img=11"),
+          // HEADER DRAWER DIPERCANTIK
+          UserAccountsDrawerHeader(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF1A237E), Color(0xFF3949AB)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            accountName: Text(
+              drawerName,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            accountEmail: Text(drawerEmail),
+            currentAccountPicture: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const CircleAvatar(
+                backgroundImage: NetworkImage("https://i.pravatar.cc/150"),
+              ),
             ),
           ),
 
-          // Menu Home
           ListTile(
-            title: const Text("Home"),
             leading: const Icon(Icons.home),
+            title: const Text("Home"),
             onTap: () {
-              Navigator.popAndPushNamed(context, 'home');
+              // Jika sudah di home, cukup tutup drawer (UX lebih baik)
+              Navigator.pop(context); 
             },
           ),
 
-          // Menu Edit Profile
           ListTile(
-            title: const Text("Edit Profile"),
             leading: const Icon(Icons.edit),
+            title: const Text("Edit Profile"),
             onTap: () {
               Navigator.popAndPushNamed(context, 'edit_profile');
             },
           ),
 
+          ListTile(
+            leading: const Icon(Icons.people),
+            title: const Text("Contacts"),
+            onTap: () {
+              Navigator.popAndPushNamed(context, 'contacts');
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.person_add),
+            title: const Text("Requests"),
+            onTap: () {
+              Navigator.popAndPushNamed(context, 'requests');
+            },
+          ),
+
           const Divider(),
 
-          // Menu Logout
           ListTile(
-            title: const Text(
-              "Logout",
-              style: TextStyle(color: Colors.red),
-            ),
             leading: const Icon(Icons.logout, color: Colors.red),
-            onTap: () {
-              setState(() {
-                doLogout();
-              });
+            title: const Text("Logout", style: TextStyle(color: Colors.red)),
+            onTap: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove("user_id");
+
+              if (!mounted) return;
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const MyLogin()),
+                (route) => false,
+              );
             },
           ),
         ],
@@ -154,34 +208,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
+        // Warna diambil otomatis dari Theme global
       ),
-
-      // 🟢 Tambahkan Drawer sesuai instruksi UTS
-      drawer: myDrawer(context),
-
-      // 🏠 Tampilkan halaman Home
+      drawer: myDrawer(),
       body: const Home(),
-
-      // floatingActionButton: FloatingActionButton(
-      //   onPressed: _incrementCounter,
-      //   tooltip: 'Increment',
-      //   child: const Icon(Icons.add),
-      // ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }

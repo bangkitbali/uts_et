@@ -1,160 +1,260 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
 
   @override
-  State<EditProfileScreen> createState() => _EditProfileScreenState();
+  EditProfileScreenState createState() {
+    return EditProfileScreenState();
+  }
 }
 
-class _EditProfileScreenState extends State<EditProfileScreen> {
-  final TextEditingController _namaController = TextEditingController(
-    text: "Trianda Zevania",
-  );
-  final TextEditingController _bioController = TextEditingController(
-    text:
-        "Mahasiswa semester 6 Teknik Informatika dengan minat di bidang pengembangan web dan mobile. Aktif dalam organisasi kampus dan menyukai tantangan baru.",
-  );
+class EditProfileScreenState extends State<EditProfileScreen> {
+  String user_id = "";
+  String user_name = "";
 
-  // daftar pilihan program
-  String? _selectedProgram = "Teknik Informatika";
-  final List<String> _programList = <String>[
+  TextEditingController _bioCont = TextEditingController();
+  String? _program;
+
+  final List<String> programList = [
     "Teknik Informatika",
     "Teknik Komputer",
     "Sistem Informasi",
     "Teknologi Informasi",
   ];
 
-  // fungsi untuk menampilkan pop-up dan kembali ke home
-  void _saveProfile() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Berhasil"),
-          content: const Text("Data berhasil diperbarui"),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context); // tutup dialog
-                Navigator.popAndPushNamed(context, 'home'); // kembali ke home
-              },
-              child: const Text("OK"),
-            ),
-          ],
-        );
+  Future<String> fetchData() async {
+    final prefs = await SharedPreferences.getInstance();
+    user_id = prefs.getString("user_id")!;
+
+    final response = await http.post(
+      Uri.parse("https://ubaya.cloud/flutter/160422163/uas/get_profile.php"),
+      body: {'user_id': user_id},
+    );
+
+    if (response.statusCode == 200) {
+      return response.body;
+    } else {
+      throw Exception('Failed to read API');
+    }
+  }
+
+  void bacaData() {
+    fetchData().then((value) {
+      Map json = jsonDecode(value);
+      setState(() {
+        user_name = json['user_name'];
+        _program = json['user_program'];
+        _bioCont.text = json['user_bio'] ?? "";
+      });
+    });
+  }
+
+  void submit() async {
+    final response = await http.post(
+      Uri.parse("https://ubaya.cloud/flutter/160422163/uas/update_profile.php"),
+      body: {
+        'user_id': user_id,
+        'user_program': _program ?? "",
+        'user_bio': _bioCont.text,
       },
     );
+
+    if (response.statusCode == 200) {
+      Map json = jsonDecode(response.body);
+      if (json['result'] == 'success') {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profil berhasil diperbarui'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } else {
+      throw Exception('Failed to update');
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    bacaData();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Update Profil"),
-        backgroundColor: Colors.blueAccent,
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text("Edit Profile")),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Center(
-              child: CircleAvatar(
-                radius: 60,
-                backgroundImage: NetworkImage(
-                  "https://i.pravatar.cc/300?img=68",
-                ),
-              ),
-            ),
-            const SizedBox(height: 25),
-
-            // Nama Lengkap
-            buildTextField("Nama Lengkap", _namaController, Icons.person),
-            const SizedBox(height: 16),
-
-            // Program / Lab (combo box)
-            InputDecorator(
-              decoration: const InputDecoration(
-                labelText: "Program/Lab",
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.school),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedProgram ?? "Teknik Informatika",
-                  isExpanded: true,
-                  items: _programList.map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: (newValue) {
-                    setState(() {
-                      _selectedProgram = newValue;
-                    });
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Biografi
-            TextField(
-              controller: _bioController,
-              maxLines: 5,
-              decoration: const InputDecoration(
-                labelText: "Biografi",
-                alignLabelWithHint: true,
-                prefixIcon: Icon(Icons.text_snippet),
-                border: OutlineInputBorder(),
+            Center(
+              child: Column(
+                children: [
+                  Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Theme.of(context).primaryColor,
+                            width: 3,
+                          ),
+                        ),
+                        child: CircleAvatar(
+                          radius: 60,
+                          backgroundColor: Colors.grey[200],
+                          backgroundImage:
+                              const NetworkImage("https://i.pravatar.cc/150"),
+                        ),
+                      ),
+                      // Ikon kamera kecil sebagai hiasan (visual saja)
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).primaryColor,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    user_name.isNotEmpty ? user_name : "Loading...",
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      "NRP: $user_id",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[700],
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 30),
 
-            // Tombol Batal & Simpan
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text("Batal"),
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Informasi Akademik",
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey),
+                    ),
+                    const SizedBox(height: 15),
+
+                    // PROGRAM DROPDOWN
+                    DropdownButtonFormField<String>(
+                      value: _program,
+                      items: programList.map((p) {
+                        return DropdownMenuItem(
+                          value: p,
+                          child: Text(p),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _program = value;
+                        });
+                      },
+                      decoration: InputDecoration(
+                        labelText: "Program / Lab",
+                        prefixIcon: const Icon(Icons.school_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // BIO INPUT
+                    TextFormField(
+                      controller: _bioCont,
+                      maxLines: 4,
+                      decoration: InputDecoration(
+                        labelText: "Biografi Singkat",
+                        alignLabelWithHint: true,
+                        prefixIcon: const Padding(
+                          padding: EdgeInsets.only(bottom: 60),
+                          child: Icon(Icons.description_outlined),
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                      ),
+                    ),
+                  ],
                 ),
-                ElevatedButton(
-                  onPressed: _saveProfile,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal,
-                    foregroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 30),
+
+            // ================= TOMBOL SIMPAN =================
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white, // Warna teks putih
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Text("Simpan Perubahan"),
+                  elevation: 3,
                 ),
-              ],
+                onPressed: submit,
+                icon: const Icon(Icons.save),
+                label: const Text(
+                  "Simpan Perubahan",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget buildTextField(
-    String label,
-    TextEditingController controller,
-    IconData icon,
-  ) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        prefixIcon: Icon(icon),
-        labelText: label,
-        border: const OutlineInputBorder(),
       ),
     );
   }
